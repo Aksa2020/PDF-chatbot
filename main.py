@@ -46,14 +46,18 @@ connection_string = st.secrets["database"]["url"]  # format: postgres://user:pas
 collection_name = "pdf_chat_history"  # must match pg table with `embedding vector(...)`
 
 # --- Embedding Model ---
-
-
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
-    model_kwargs={"device": device})
+    model_kwargs={"device": device}
+)
 
+model_attr = getattr(embedding_model, "model", None)
+if model_attr and hasattr(model_attr, "to_empty"):
+    try:
+        model_attr = torch.nn.Module.to_empty(model_attr, device=device)
+    except Exception as e:
+        print("Warning using to_empty:", e)
 # --- Upload PDF and Create Supabase VectorStore ---
 upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key='upload_pdf')
 if upload_pdf and st.session_state['retriever'] is None:
