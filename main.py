@@ -46,10 +46,9 @@ collection_name = "pdf_chat_history"  # must match pg table with `embedding vect
 
 # --- Embedding Model ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
-embedding_model = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2",
-    model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"}
-)
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2", device="cuda" if torch.cuda.is_available() else "cpu")
 
 # --- Upload PDF and Create Supabase VectorStore ---
 upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key='upload_pdf')
