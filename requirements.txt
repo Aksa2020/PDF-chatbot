@@ -1,7 +1,10 @@
 pinecone>=4.0.0
-langchain
-langchain-community
 streamlit
 torch
-sentence-transformers
+langchain
+langchain-community
 langchain-groq
+sentence-transformers
+pypdf
+transformers
+
