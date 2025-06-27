@@ -14,14 +14,32 @@ from langchain_groq import ChatGroq
 from pinecone import Pinecone, ServerlessSpec
 
 # --- Pinecone (v2) Init ---
-pinecone.init(
-    api_key=st.secrets["api_key"],
-    environment=st.secrets["environment"]
-)
+import os
+from pinecone import Pinecone, ServerlessSpec
 
+# Set your API key (from Streamlit secrets or environment)
+api_key = st.secrets["api_key"]
 index_name = st.secrets["index_name"]
-if index_name not in pinecone.list_indexes():
-    pinecone.create_index(index_name, dimension=384, metric="cosine")
+cloud = st.secrets["cloud"]
+region = st.secrets["region"]
+
+# Create Pinecone client
+pc = Pinecone(api_key=api_key)
+
+# Create index if it doesn't exist
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name,
+        dimension=384,  # for MiniLM model
+        metric="cosine",
+        spec=ServerlessSpec(
+            cloud=cloud,
+            region=region
+        )
+    )
+
+# Get index object
+pc_index = pc.Index(index_name)
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
