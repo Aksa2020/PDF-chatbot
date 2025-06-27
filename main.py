@@ -5,6 +5,7 @@ import streamlit as st
 from datetime import datetime
 
 from langchain_community.document_loaders import PyPDFLoader
+from sentence_transformers import SentenceTransformer
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as LC_Pinecone
 from langchain.memory import ConversationBufferMemory
@@ -59,9 +60,13 @@ if 'memory' not in st.session_state:
     )
 
 # --- Embeddings ---
-embedding_model = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
+
+
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+embedding_model = HuggingFaceEmbeddings(model_name=None, model=model)
+
 
 # --- Upload PDF ---
 upload_pdf = st.file_uploader("Upload PDF", type=["pdf"])
