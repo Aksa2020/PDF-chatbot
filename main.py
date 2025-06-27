@@ -11,29 +11,23 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
 
-from pinecone import Pinecone, ServerlessSpec
+import pinecone
 
-# --- Set up Pinecone client (v3) ---
-pc = Pinecone(api_key=st.secrets["api_key"])
+# --- Pinecone (v2) Init ---
+pinecone.init(
+    api_key=st.secrets["api_key"],
+    environment=st.secrets["environment"]
+)
+
 index_name = st.secrets["index_name"]
+if index_name not in pinecone.list_indexes():
+    pinecone.create_index(index_name, dimension=384, metric="cosine")
 
-# Create index if it doesn't exist
-if index_name not in pc.list_indexes().names():
-    pc.create_index(
-        name=index_name,
-        dimension=384,  # all-MiniLM-L6-v2
-        metric="cosine",
-        spec=ServerlessSpec(
-            cloud=st.secrets["cloud"],    # e.g., "aws"
-            region=st.secrets["region"]   # e.g., "us-west-2"
-        )
-    )
-
-# --- Streamlit UI setup ---
+# --- Streamlit UI ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
-st.title("📄 PDF ChatBot (Pinecone v3 Edition)")
+st.title("📄 PDF ChatBot")
 
-# --- Session Initialization ---
+# --- Session Setup ---
 if 'session_id' not in st.session_state:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state['session_id'] = f"session_{timestamp}_{uuid.uuid4().hex[:6]}"
@@ -46,16 +40,17 @@ if 'memory' not in st.session_state:
         memory_key="chat_history", return_messages=True
     )
 
-# --- Load PDF and generate vector DB ---
+# --- Embeddings ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     model_kwargs={"device": device}
 )
 
-upload_pdf = st.file_uploader("Upload a PDF", type=["pdf"])
+# --- Upload PDF ---
+upload_pdf = st.file_uploader("Upload PDF", type=["pdf"])
 if upload_pdf and st.session_state['retriever'] is None:
-    with st.spinner("Processing PDF and indexing in Pinecone..."):
+    with st.spinner("Processing PDF..."):
         pdf_path = os.path.join(os.getcwd(), upload_pdf.name)
         with open(pdf_path, "wb") as f:
             f.write(upload_pdf.getbuffer())
@@ -72,7 +67,7 @@ if upload_pdf and st.session_state['retriever'] is None:
         )
 
         st.session_state['retriever'] = vectordb.as_retriever(search_kwargs={"k": 3})
-        st.success("PDF processed and indexed in Pinecone!")
+        st.success("PDF processed and stored in Pinecone.")
 
 # --- LLM via Groq ---
 llm = ChatGroq(
@@ -81,7 +76,7 @@ llm = ChatGroq(
     temperature=0
 )
 
-# --- Chat Chain ---
+# --- QA Chain ---
 if st.session_state['retriever']:
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
@@ -90,12 +85,11 @@ if st.session_state['retriever']:
         return_source_documents=False
     )
 
-# --- User Question Handler ---
+# --- Handle Question ---
 def handle_user_question():
     user_question = st.session_state["text"]
     if not user_question.strip():
         return
-
     with st.spinner("Thinking..."):
         result = qa_chain.invoke({"question": user_question})
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
@@ -111,7 +105,7 @@ if st.session_state['chat_messages']:
 
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
-# --- Clear session ---
+# --- Clear Session ---
 def del_uploaded_pdf(path):
     if path and os.path.exists(path):
         os.remove(path)
