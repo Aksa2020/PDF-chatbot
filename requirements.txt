@@ -1,6 +1,7 @@
 langchain_openai
 pgvector
 psycopg2-binary
+sqlalchemy
 streamlit
 torch
 langchain
