@@ -1,10 +1,10 @@
 streamlit
-langchain[astra]
+langchain
 langchain-community
 langchain-openai
 langchain-groq
 sentence-transformers
-cassandra-driver
 torch
-groq
 faiss-cpu
+cassandra-driver
+langchain-astradb
