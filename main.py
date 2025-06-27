@@ -1,21 +1,19 @@
 import os
-import json
 import uuid
 import torch
-import shutil
 import streamlit as st
 from datetime import datetime
-
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as LC_Pinecone
-
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
 
-from pinecone import Pinecone, ServerlessSpec
-import os
+# 🧠 LangChain expects Pinecone v2.x (pinecone-client)
+import pinecone
+
+# 🔐 Set API key via env var for compatibility with LangChain internals
 os.environ["PINECONE_API_KEY"] = st.secrets["api_key"]
 
 # --- Streamlit Config ---
@@ -23,22 +21,22 @@ st.set_page_config(page_title="PDF ChatBot", layout="centered")
 st.title("📄 PDF ChatBot (Pinecone Edition)")
 
 # --- Pinecone Setup ---
-pc = Pinecone(api_key=st.secrets["api_key"])
+pinecone.init(
+    api_key=st.secrets["api_key"],
+    environment=st.secrets["environment"]  # e.g., "gcp-starter" or "us-west1-gcp"
+)
+
 index_name = st.secrets["index_name"]
 
-if index_name not in pc.list_indexes().names():
-    pc.create_index(
-        name=index_name,
-        dimension=384,  # for all-MiniLM-L6-v2
-        metric="cosine",
-        spec=ServerlessSpec(
-            cloud=st.secrets["cloud"],
-            region=st.secrets["region"]
-        )
+# Create index if doesn't exist
+if index_name not in pinecone.list_indexes():
+    pinecone.create_index(
+        index_name,
+        dimension=384,
+        metric="cosine"
     )
 
-
-pc_index = pc.describe_index(index_name)
+pc_index = pinecone.Index(index_name)
 
 # --- Session Setup ---
 if 'session_id' not in st.session_state:
@@ -49,15 +47,18 @@ if 'session_id' not in st.session_state:
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    st.session_state['memory'] = ConversationBufferMemory(
+        memory_key="chat_history", return_messages=True
+    )
 
-# --- Load PDF and Create Vector Store ---
+# --- Embeddings ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     model_kwargs={"device": device}
 )
 
+# --- PDF Upload & Vector Store ---
 upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key="upload_pdf")
 if upload_pdf and st.session_state['retriever'] is None:
     with st.spinner("Processing PDF and storing vectors in Pinecone..."):
@@ -77,16 +78,16 @@ if upload_pdf and st.session_state['retriever'] is None:
         )
 
         st.session_state['retriever'] = vectordb.as_retriever(search_kwargs={"k": 3})
-        st.success("PDF processed and stored in Pinecone!")
+        st.success("PDF processed and vectors stored in Pinecone!")
 
-# --- LLM Setup ---
+# --- LLM (Groq) ---
 llm = ChatGroq(
     groq_api_key=st.secrets["groq_api_key"],
     model_name="llama3-8b-8192",
     temperature=0
 )
 
-# --- QA Chain Setup ---
+# --- QA Chain ---
 if st.session_state['retriever']:
     qa_chain = ConversationalRetrievalChain.from_llm(
         llm=llm,
@@ -95,7 +96,7 @@ if st.session_state['retriever']:
         return_source_documents=False
     )
 
-# --- Handle User Question ---
+# --- Handle User Input ---
 def handle_user_question():
     user_question = st.session_state["text"]
     if not user_question.strip():
@@ -105,10 +106,9 @@ def handle_user_question():
         result = qa_chain.invoke({"question": user_question})
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
         st.session_state['chat_messages'].append({"role": "bot", "content": result["answer"]})
-
     st.session_state["text"] = ""
 
-# --- Display Chat History ---
+# --- Chat Display ---
 if st.session_state['chat_messages']:
     st.markdown("### 💬 Current Chat Session")
     for msg in st.session_state['chat_messages']:
@@ -132,5 +132,5 @@ if st.button("Clear Session"):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state['session_id'] = f"session_{timestamp}_{uuid.uuid4().hex[:6]}"
     st.session_state['chat_messages'] = []
-    st.success("Session, PDF, and retriever cleared.")
+    st.success("Session cleared.")
     st.rerun()
