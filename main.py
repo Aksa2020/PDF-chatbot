@@ -5,7 +5,8 @@ import uuid
 import torch
 import streamlit as st
 from datetime import datetime
-
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import torch
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores.pgvector import PGVector
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -45,10 +46,13 @@ connection_string = st.secrets["database"]["url"]  # format: postgres://user:pas
 collection_name = "pdf_chat_history"  # must match pg table with `embedding vector(...)`
 
 # --- Embedding Model ---
-device = "cuda" if torch.cuda.is_available() else "cpu"
-from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer("all-MiniLM-L6-v2", device="cuda" if torch.cuda.is_available() else "cpu")
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+embedding_model = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2",
+    model_kwargs={"device": device})
 
 # --- Upload PDF and Create Supabase VectorStore ---
 upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key='upload_pdf')
