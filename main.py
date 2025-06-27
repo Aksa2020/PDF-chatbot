@@ -7,7 +7,8 @@ import streamlit as st
 from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import Pinecone
+#from langchain.vectorstores import Pinecone
+from langchain_community.vectorstores import Pinecone
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
