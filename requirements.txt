@@ -1,13 +1,10 @@
 streamlit
-langchain
-langchain-huggingface
-huggingface-hub
+langchain[astra]
 langchain-community
 langchain-openai
 langchain-groq
 sentence-transformers
-faiss-cpu
-openai
-pypdf
-groq
+cassandra-driver
 torch
+groq
+faiss-cpu
