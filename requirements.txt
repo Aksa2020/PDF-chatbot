@@ -3,5 +3,5 @@ torch
 langchain
 langchain-community
 langchain-groq
-pinecone-client
+pinecone
 sentence-transformers
