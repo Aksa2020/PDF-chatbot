@@ -42,7 +42,7 @@ if os.path.exists(session_path):
 
 # --- Supabase PGVector Setup ---
 connection_string = st.secrets["SUPABASE_DB_URL"]  # format: postgres://user:pass@host/db
-collection_name = "documents"  # must match pg table with `embedding vector(...)`
+collection_name = "pdf_chat_history"  # must match pg table with `embedding vector(...)`
 
 # --- Embedding Model ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
