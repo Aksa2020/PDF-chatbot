@@ -15,6 +15,8 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
 
 from pinecone import Pinecone, ServerlessSpec
+import os
+os.environ["PINECONE_API_KEY"] = st.secrets["api_key"]
 
 # --- Streamlit Config ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
