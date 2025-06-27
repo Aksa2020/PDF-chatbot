@@ -7,7 +7,7 @@ import streamlit as st
 from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores.astra import AstraDB
+from langchain_community.vectorstores.astra import AstraDB
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
