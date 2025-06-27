@@ -7,19 +7,22 @@ import streamlit as st
 from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_astradb import AstraDB
+from langchain.vectorstores import Pinecone
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
-from cassio.config import check_resolve_config
+import pinecone
 
-# --- Astra DB Setup ---
-ASTRA_DB_COLLECTION = "pdf_chatbot"
-check_resolve_config()
+# --- Pinecone Setup ---
+pinecone.init(
+    api_key=st.secrets["pinecone"]["api_key"],
+    environment=st.secrets["pinecone"]["environment"]
+)
+PINECONE_INDEX_NAME = "pdf-chatbot-index"
 
 # --- Streamlit UI Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
-st.title("PDF ChatBot (Astra DB Edition)")
+st.title("PDF ChatBot (Pinecone Edition)")
 
 # --- Session Setup ---
 if 'session_id' not in st.session_state:
@@ -31,7 +34,7 @@ if 'retriever' not in st.session_state:
 if 'memory' not in st.session_state:
     st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-# --- Load PDF and store vectors in Astra DB ---
+# --- Load PDF and store vectors in Pinecone ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -40,23 +43,22 @@ embedding_model = HuggingFaceEmbeddings(
 
 upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key='upload_pdf')
 if upload_pdf and st.session_state['retriever'] is None:
-    with st.spinner("Processing PDF and saving vectors to Astra DB..."):
+    with st.spinner("Processing PDF and saving vectors to Pinecone..."):
         pdf_path = os.path.join(os.getcwd(), upload_pdf.name)
         with open(pdf_path, "wb") as f:
             f.write(upload_pdf.getbuffer())
         loader = PyPDFLoader(pdf_path)
         documents = loader.load()
 
-        vectordb = AstraDB(
+        vectordb = Pinecone.from_documents(
+            documents=documents,
             embedding=embedding_model,
-            collection_name=ASTRA_DB_COLLECTION,
-            ids=[str(uuid.uuid4()) for _ in documents],
-            documents=documents
+            index_name=PINECONE_INDEX_NAME
         )
 
         st.session_state['retriever'] = vectordb.as_retriever(search_kwargs={"k": 3})
         st.session_state['pdf_file_path'] = pdf_path
-        st.success("Vectors stored in Astra DB and retriever ready!")
+        st.success("Vectors stored in Pinecone and retriever ready!")
 
 # --- Load LLM ---
 llm = ChatGroq(
