@@ -1,33 +1,25 @@
 import os
 import uuid
-import torch
 import streamlit as st
 from datetime import datetime
+import torch
 
 from langchain_community.document_loaders import PyPDFLoader
-from sentence_transformers import SentenceTransformer
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Pinecone as LC_Pinecone
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
-
 from pinecone import Pinecone, ServerlessSpec
 
-# --- Pinecone (v2) Init ---
-import os
-from pinecone import Pinecone, ServerlessSpec
-
-# Set your API key (from Streamlit secrets or environment)
+# --- Pinecone (v3) Init ---
 api_key = st.secrets["api_key"]
 index_name = st.secrets["index_name"]
 cloud = st.secrets["cloud"]
 region = st.secrets["region"]
 
-# Create Pinecone client
 pc = Pinecone(api_key=api_key)
 
-# Create index if it doesn't exist
 if index_name not in pc.list_indexes().names():
     pc.create_index(
         name=index_name,
@@ -38,9 +30,6 @@ if index_name not in pc.list_indexes().names():
             region=region
         )
     )
-
-# Get index object
-pc_index = pc.Index(index_name)
 
 # --- Streamlit UI ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
@@ -60,13 +49,9 @@ if 'memory' not in st.session_state:
     )
 
 # --- Embeddings ---
-
-
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-model = model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-
-embedding_model = HuggingFaceEmbeddings(model_name=None, model=model)
-
+embedding_model = HuggingFaceEmbeddings(
+    model_name="sentence-transformers/all-MiniLM-L6-v2"
+)
 
 # --- Upload PDF ---
 upload_pdf = st.file_uploader("Upload PDF", type=["pdf"])
