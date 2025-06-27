@@ -7,4 +7,6 @@ langchain-groq
 sentence-transformers
 pypdf
 transformers
+uuid
+
 
