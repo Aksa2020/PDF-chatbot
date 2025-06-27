@@ -21,8 +21,8 @@ st.set_page_config(page_title="PDF ChatBot", layout="centered")
 st.title("📄 PDF ChatBot (Pinecone Edition)")
 
 # --- Pinecone Setup ---
-pc = Pinecone(api_key=st.secrets["pinecone"]["api_key"])
-index_name = st.secrets["pinecone"]["index_name"]
+pc = Pinecone(api_key=st.secrets["api_key"])
+index_name = st.secrets["index_name"]
 
 if index_name not in pc.list_indexes().names():
     pc.create_index(
@@ -30,8 +30,8 @@ if index_name not in pc.list_indexes().names():
         dimension=384,  # for all-MiniLM-L6-v2
         metric="cosine",
         spec=ServerlessSpec(
-            cloud=st.secrets["pinecone"]["cloud"],
-            region=st.secrets["pinecone"]["region"]
+            cloud=st.secrets["cloud"],
+            region=st.secrets["region"]
         )
     )
 
