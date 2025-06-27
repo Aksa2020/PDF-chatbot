@@ -8,6 +8,8 @@ from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 #from langchain.vectorstores import Pinecone
+from pinecone import Pinecone, ServerlessSpec
+from langchain_community.vectorstores import Pinecone as LC_Pinecone
 from langchain_community.vectorstores import Pinecone
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
@@ -15,11 +17,25 @@ from langchain_groq import ChatGroq
 import pinecone
 
 # --- Pinecone Setup ---
-pinecone.init(
-    api_key=st.secrets["pinecone"]["api_key"],
-    environment=st.secrets["pinecone"]["environment"]
-)
-PINECONE_INDEX_NAME = "pdf-chatbot-index"
+pc = Pinecone(api_key=st.secrets["pinecone"]["api_key"])
+
+# --- Create index if it doesn't exist ---
+index_name = st.secrets["pinecone"]["index_name"]
+if index_name not in pc.list_indexes().names():
+    pc.create_index(
+        name=index_name,
+        dimension=384,  # For sentence-transformers/all-MiniLM-L6-v2
+        metric='cosine',
+        spec=ServerlessSpec(
+            cloud=st.secrets["pinecone"]["cloud"],
+            region=st.secrets["pinecone"]["region"]
+        )
+    )
+
+# Wait until index is ready
+pc_index = pc.Index(index_name)
+
+PINECONE_INDEX_NAME = "pdf-chatbot"
 
 # --- Streamlit UI Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
@@ -51,11 +67,14 @@ if upload_pdf and st.session_state['retriever'] is None:
         loader = PyPDFLoader(pdf_path)
         documents = loader.load()
 
-        vectordb = Pinecone.from_documents(
-            documents=documents,
-            embedding=embedding_model,
-            index_name=PINECONE_INDEX_NAME
+        vectordb = LC_Pinecone.from_documents(
+            documents,
+            embedding_model,
+            index_name=index_name,
+            namespace=st.session_state['session_id']  # Optional: isolate per session
         )
+        st.session_state['retriever'] = vectordb.as_retriever(search_kwargs={"k": 3})
+
 
         st.session_state['retriever'] = vectordb.as_retriever(search_kwargs={"k": 3})
         st.session_state['pdf_file_path'] = pdf_path
