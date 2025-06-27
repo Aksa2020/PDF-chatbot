@@ -1,10 +1,7 @@
 streamlit
+torch
 langchain
 langchain-community
-langchain-openai
 langchain-groq
+pinecone-client
 sentence-transformers
-torch
-faiss-cpu
-cassandra-driver
-langchain-astradb
