@@ -11,7 +11,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
 
-import pinecone
+from pinecone import Pinecone, ServerlessSpec
 
 # --- Pinecone (v2) Init ---
 pinecone.init(
