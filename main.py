@@ -37,7 +37,8 @@ if index_name not in pc.list_indexes().names():
         )
     )
 
-pc_index = pc.Index(index_name)
+
+pc_index = pc.describe_index(index_name)
 
 # --- Session Setup ---
 if 'session_id' not in st.session_state:
