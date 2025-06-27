@@ -41,7 +41,7 @@ if os.path.exists(session_path):
         st.session_state['chat_messages'] = json.load(f)
 
 # --- Supabase PGVector Setup ---
-connection_string = st.secrets["SUPABASE_DB_URL"]  # format: postgres://user:pass@host/db
+connection_string = st.secrets["database"]["url"]  # format: postgres://user:pass@host/db
 collection_name = "pdf_chat_history"  # must match pg table with `embedding vector(...)`
 
 # --- Embedding Model ---
