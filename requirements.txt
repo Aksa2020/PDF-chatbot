@@ -1,7 +1,7 @@
-streamlit
-torch
+pinecone>=4.0.0
 langchain
 langchain-community
-langchain-groq
-pinecone
+streamlit
+torch
 sentence-transformers
+langchain-groq
