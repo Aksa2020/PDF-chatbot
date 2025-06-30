@@ -3,11 +3,12 @@ langchain
 langchain-community
 langchain-groq
 langchain-openai
-pdfminer.six
-unstructured
 python-dotenv
 faiss-cpu
 sentence-transformers
-pillow-heif
 torch
-Pillow
+pillow
+pillow-heif
+pdfminer.six
+pypdf
+unstructured[pdf]
