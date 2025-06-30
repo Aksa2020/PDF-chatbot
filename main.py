@@ -1,26 +1,28 @@
 import os
-import streamlit as st
 import shutil
 import json
 import uuid
 import torch
+import streamlit as st
 from datetime import datetime
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_groq import ChatGroq
+from langchain.memory import ConversationBufferMemory
 from langchain.chains import (
     create_history_aware_retriever,
     create_retrieval_chain
 )
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.memory import ConversationBufferMemory
 
-# --- Setup ---
+# --- Streamlit Page Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
 st.title("📄💬 PDF + Chat ChatBot")
 
+# --- Directory Setup ---
 vector_space_dir = os.path.join(os.getcwd(), "vector_db")
 sessions_dir = os.path.join(os.getcwd(), "chat_sessions")
 os.makedirs(vector_space_dir, exist_ok=True)
@@ -44,21 +46,20 @@ if os.path.exists(session_path):
     with open(session_path, "r") as f:
         st.session_state['chat_messages'] = json.load(f)
 
-# --- Load LLM ---
+# --- LLM and Embeddings ---
 llm = ChatGroq(
     groq_api_key=st.secrets["groq_api_key"],
     model_name="llama3-8b-8192",
     temperature=0
 )
 
-# --- Load Embeddings ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     model_kwargs={"device": device}
 )
 
-# --- File Uploader ---
+# --- PDF Upload ---
 upload_pdf = st.file_uploader("📁 Upload PDF", type=["pdf"], key="upload_pdf")
 if upload_pdf and "vectorstore" not in st.session_state:
     with st.spinner("Processing PDF..."):
@@ -70,18 +71,21 @@ if upload_pdf and "vectorstore" not in st.session_state:
         vectorstore = FAISS.from_documents(docs, embedding_model)
         vectorstore.save_local(vector_space_dir)
         st.session_state['vectorstore'] = vectorstore
-        st.session_state['retriever'] = vectorstore.as_retriever(search_kwargs={"k": 3})
         st.success("✅ Vector DB created!")
 
-# --- Build Conversational Chain ---
-if "vectorstore" in st.session_state and "qa_chain" not in st.session_state:
-    retriever = st.session_state['retriever']
+# --- Build Retriever + Chain ---
+if "vectorstore" in st.session_state:
+    st.session_state["retriever"] = st.session_state["vectorstore"].as_retriever(search_kwargs={"k": 3})
+
+if "retriever" in st.session_state and "qa_chain" not in st.session_state:
+    retriever = st.session_state["retriever"]
 
     contextualize_q_prompt = ChatPromptTemplate.from_messages([
         ("system", "Given a chat history and the latest user question which might reference context, rephrase it as a standalone question."),
         MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ])
+
     history_aware_retriever = create_history_aware_retriever(
         llm=llm,
         retriever=retriever,
@@ -94,11 +98,13 @@ if "vectorstore" in st.session_state and "qa_chain" not in st.session_state:
         ("human", "{input}")
     ])
     question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+
     qa_chain = create_retrieval_chain(
         retriever=history_aware_retriever,
         combine_docs_chain=question_answer_chain,
         memory=st.session_state["memory"]
     )
+
     st.session_state["qa_chain"] = qa_chain
 
 # --- Handle User Input ---
@@ -112,7 +118,6 @@ def handle_user_question():
             result = st.session_state["qa_chain"].invoke({"input": user_question})
             answer = result["answer"]
         else:
-            # fallback to LLM-only
             answer = llm.invoke(user_question)
 
         st.session_state["chat_messages"].append({"role": "user", "content": user_question})
@@ -123,19 +128,18 @@ def handle_user_question():
 
     st.session_state["text"] = ""
 
-# --- Chat Display ---
+# --- Chat UI ---
 if st.session_state['chat_messages']:
     st.markdown("### 💬 Chat History")
     for msg in st.session_state['chat_messages']:
         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- Chat Input ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
-# --- Sidebar: History Sessions ---
+# --- Sidebar ---
 with st.sidebar:
-    st.markdown("### 📂 View Previous Sessions")
+    st.markdown("### 📂 Previous Sessions")
     session_files = [f.replace(".json", "") for f in os.listdir(sessions_dir) if f.endswith(".json")]
     selected_session = st.selectbox("Select a session", options=["-- Select --"] + session_files)
     if selected_session != "-- Select --":
@@ -148,7 +152,7 @@ with st.sidebar:
                         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
                         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- Clear Session Button ---
+# --- Clear Session ---
 def del_vectordb(path):
     if os.path.exists(path):
         shutil.rmtree(path)
