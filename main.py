@@ -130,16 +130,25 @@ def handle_user_question():
     if not user_question.strip():
         return
 
+    # Build chat history as tuples
+    chat_history = []
+    for msg in st.session_state['chat_messages']:
+        if msg['role'] == 'user':
+            chat_history.append((msg['content'], None))
+        elif msg['role'] == 'bot' and chat_history:
+            chat_history[-1] = (chat_history[-1][0], msg['content'])
+
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
             result = st.session_state['qa_chain'].invoke({
                 "question": user_question,
-                "chat_history": st.session_state['memory'].chat_memory.messages
+                "chat_history": chat_history
             })
             answer = result["answer"]
         else:
             answer = st.session_state['fallback_chain'].run(user_question)
 
+        # Update chat messages
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
         st.session_state['chat_messages'].append({"role": "bot", "content": answer})
 
@@ -147,6 +156,7 @@ def handle_user_question():
             json.dump(st.session_state['chat_messages'], f, indent=2)
 
     st.session_state['text'] = ""
+
 
 
 
