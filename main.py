@@ -103,23 +103,18 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if st.session_state.get("qa_chain"):
-            # PDF QA mode
-            result = st.session_state["qa_chain"].invoke({
-                "question": user_question,
-                "chat_history": st.session_state["memory"].chat_memory.messages
-            })
+            result = st.session_state["qa_chain"].invoke({"question": user_question})
             answer = result['answer']
         else:
-            # Fallback: plain conversation
             answer = st.session_state["fallback_chain"].run(user_question)
 
-        # Save messages
         st.session_state["chat_messages"].append({"role": "user", "content": user_question})
         st.session_state["chat_messages"].append({"role": "bot", "content": answer})
         with open(session_path, "w") as f:
             json.dump(st.session_state["chat_messages"], f, indent=2)
 
     st.session_state["text"] = ""
+
 
 
 # --- UI: Sidebar ---
