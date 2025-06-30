@@ -10,9 +10,8 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import ConversationalRetrievalChain, ConversationChain
 from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationChain
 
 # --- Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
@@ -33,8 +32,21 @@ if 'vectorstore' not in st.session_state:
     st.session_state['vectorstore'] = None
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
+
+# Separate memory for PDF QA and fallback conversation
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history",input_key="question",output_key="answer",return_messages=True)
+    st.session_state['memory'] = ConversationBufferMemory(
+        memory_key="chat_history",
+        input_key="question",
+        output_key="answer",
+        return_messages=True
+    )
+if 'fallback_memory' not in st.session_state:
+    st.session_state['fallback_memory'] = ConversationBufferMemory(
+        memory_key="history",
+        input_key="input",
+        return_messages=True
+    )
 if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = []
 
@@ -78,21 +90,22 @@ llm = ChatGroq(
     model_name="llama3-8b-8192",
     temperature=0
 )
-# ... after llm = ChatGroq(...)
+
+# --- Initialize fallback ConversationChain (chat-only) ---
 if "fallback_chain" not in st.session_state:
     st.session_state["fallback_chain"] = ConversationChain(
         llm=llm,
-        memory=st.session_state["memory"],
+        memory=st.session_state["fallback_memory"],
         verbose=False
     )
-# --- Create QA Chain (before callback) ---
+
+# --- Create PDF QA chain if retriever is available ---
 if st.session_state['retriever'] is not None and 'qa_chain' not in st.session_state:
     st.session_state['qa_chain'] = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=st.session_state['retriever'],
         memory=st.session_state['memory'],
-        return_source_documents=False,
-        condense_question_llm=llm
+        return_source_documents=False
     )
 
 # --- Handle User Question ---
@@ -103,7 +116,7 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if st.session_state.get("qa_chain"):
-            result = st.session_state["qa_chain"].run(user_question)
+            result = st.session_state["qa_chain"].invoke({"question": user_question})
             answer = result['answer']
         else:
             answer = st.session_state["fallback_chain"].run(user_question)
@@ -114,8 +127,6 @@ def handle_user_question():
             json.dump(st.session_state["chat_messages"], f, indent=2)
 
     st.session_state["text"] = ""
-
-
 
 # --- UI: Sidebar ---
 with st.sidebar:
@@ -132,23 +143,23 @@ with st.sidebar:
                         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
                         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- UI: Main chat area ---
+# --- Chat Area ---
 if st.session_state['chat_messages']:
     st.markdown("### 💬 Current Chat Session")
     for msg in st.session_state['chat_messages']:
         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
         st.markdown(f"**{role}:** {msg['content']}")
-# --- Show active mode (PDF QA or Chat only) ---
+
+# --- Mode Indicator ---
 if st.session_state.get("qa_chain"):
     st.success("🧠 PDF-based QA active.")
 else:
     st.info("💬 Chat mode active (no PDF loaded).")
 
-# --- Input box ---
+# --- Input Box ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
-
-# --- Clear Session ---
+# --- Clear Session Button ---
 def del_vectordb(path):
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -160,6 +171,8 @@ def del_uploaded_pdf(path):
 if st.button("Clear Session"):
     if 'memory' in st.session_state:
         st.session_state['memory'].clear()
+    if 'fallback_memory' in st.session_state:
+        st.session_state['fallback_memory'].clear()
     for key in ['chat_messages', 'text', 'retriever', 'vectorstore', 'pdf_file_path', 'upload_pdf', 'qa_chain']:
         if key in st.session_state:
             del st.session_state[key]
