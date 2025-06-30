@@ -34,7 +34,7 @@ if 'vectorstore' not in st.session_state:
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    st.session_state['memory'] = ConversationBufferMemory(memory_key="history", return_messages=True)
 if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = []
 
