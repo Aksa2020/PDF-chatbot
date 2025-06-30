@@ -132,7 +132,8 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
-            answer = st.session_state['qa_chain'].run(user_question)
+            result = st.session_state['qa_chain'].invoke({"question": user_question})
+            answer = result["answer"]
         else:
             answer = st.session_state['fallback_chain'].run(user_question)
 
@@ -143,6 +144,7 @@ def handle_user_question():
             json.dump(st.session_state['chat_messages'], f, indent=2)
 
     st.session_state['text'] = ""
+
 
 # --- UI: Sidebar ---
 with st.sidebar:
