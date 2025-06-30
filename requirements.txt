@@ -11,4 +11,6 @@ pillow
 pillow-heif
 pdfminer.six
 pypdf
-
+pypdf
+tqdm
+numpy
