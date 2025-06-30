@@ -103,7 +103,7 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if st.session_state.get("qa_chain"):
-            answer = st.session_state["qa_chain"].run(user_question)
+            result = st.session_state["qa_chain"].run(user_question)
             answer = result['answer']
         else:
             answer = st.session_state["fallback_chain"].run(user_question)
