@@ -12,6 +12,7 @@ from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationChain
 
 # --- Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
