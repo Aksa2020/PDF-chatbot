@@ -141,8 +141,7 @@ def handle_user_question():
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
             result = st.session_state['qa_chain'].invoke({
-                "question": user_question,
-                "chat_history": chat_history
+                "question": user_question
             })
             answer = result["answer"]
         else:
