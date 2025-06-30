@@ -101,6 +101,7 @@ if st.session_state.get('retriever') and 'qa_chain' not in st.session_state:
         llm=llm,
         retriever=st.session_state['retriever'],
         memory=st.session_state['memory'],
+        memory_key="history",  # optional, for clarity
         return_source_documents=False,
         condense_question_llm=llm
     )
@@ -130,24 +131,18 @@ def handle_user_question():
     if not user_question.strip():
         return
 
-    # Build chat history as tuples
-    chat_history = []
-    for msg in st.session_state['chat_messages']:
-        if msg['role'] == 'user':
-            chat_history.append((msg['content'], None))
-        elif msg['role'] == 'bot' and chat_history:
-            chat_history[-1] = (chat_history[-1][0], msg['content'])
-
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
+            # ConversationalRetrievalChain with memory, no need to pass chat_history
             result = st.session_state['qa_chain'].invoke({
                 "question": user_question
             })
             answer = result["answer"]
         else:
+            # Fallback to basic conversation
             answer = st.session_state['fallback_chain'].run(user_question)
 
-        # Update chat messages
+        # Store in session
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
         st.session_state['chat_messages'].append({"role": "bot", "content": answer})
 
