@@ -148,8 +148,7 @@ else:
 
 # --- Input box ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
-# --- Input box ---
-st.text_input("Ask your question:", key="text", on_change=handle_user_question)
+
 
 # --- Clear Session ---
 def del_vectordb(path):
