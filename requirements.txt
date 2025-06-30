@@ -11,4 +11,4 @@ pillow
 pillow-heif
 pdfminer.six
 pypdf
-unstructured[pdf]
+
