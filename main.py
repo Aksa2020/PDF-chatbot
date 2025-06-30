@@ -34,7 +34,7 @@ if 'vectorstore' not in st.session_state:
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="history", return_messages=True)
+    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history",input_key="human_input", return_messages=True)
 
 # --- Load chat history from file ---
 session_path = os.path.join(sessions_dir, f"{st.session_state['session_id']}.json")
@@ -103,16 +103,13 @@ def handle_user_question():
 
         if retriever and qa_chain:
             docs = retriever.get_relevant_documents(user_question)
-            if docs and len(docs) > 0:
-                result = qa_chain.invoke({
-                    "question": user_question,
-                    "chat_history": st.session_state["memory"].chat_memory.messages
-                })
+            if docs:
+                result = qa_chain.invoke({"human_input": user_question})
                 answer = result["answer"]
             else:
-                answer = st.session_state["fallback_chain"].run(user_question)
+                answer = st.session_state["fallback_chain"].predict(human_input=user_question)
         else:
-            answer = st.session_state["fallback_chain"].run(user_question)
+            answer = st.session_state["fallback_chain"].predict(human_input=user_question)
 
         st.session_state["chat_messages"].append({"role": "user", "content": user_question})
         st.session_state["chat_messages"].append({"role": "bot", "content": answer})
@@ -121,6 +118,7 @@ def handle_user_question():
             json.dump(st.session_state["chat_messages"], f, indent=2)
 
     st.session_state["text"] = ""
+
 
 
 # --- Sidebar: Session Selection ---
