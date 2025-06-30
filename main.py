@@ -1,10 +1,11 @@
 import os
-import streamlit as st
 import shutil
 import json
 import uuid
 import torch
+import streamlit as st
 from datetime import datetime
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -15,63 +16,43 @@ from langchain.memory import ConversationBufferMemory
 
 # --- Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
-st.title("PDF ChatBot")
+st.title("📄 PDF ChatBot")
 
 vector_space_dir = os.path.join(os.getcwd(), "vector_db")
 sessions_dir = os.path.join(os.getcwd(), "chat_sessions")
 os.makedirs(vector_space_dir, exist_ok=True)
 os.makedirs(sessions_dir, exist_ok=True)
 
-# --- Initialize Session ---
+# --- Session State Init ---
 if 'session_id' not in st.session_state:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state['session_id'] = f"session_{timestamp}_{uuid.uuid4().hex[:6]}"
+if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = []
-
 if 'vectorstore' not in st.session_state:
     st.session_state['vectorstore'] = None
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
-
-# Separate memory for PDF QA and fallback conversation
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(
-        memory_key="chat_history",
-        input_key="question",
-        output_key="answer",
-        return_messages=True
-    )
-if 'fallback_memory' not in st.session_state:
-    st.session_state['fallback_memory'] = ConversationBufferMemory(
-        memory_key="history",
-        input_key="input",
-        return_messages=True
-    )
-if 'chat_messages' not in st.session_state:
-    st.session_state['chat_messages'] = []
+    st.session_state['memory'] = ConversationBufferMemory(memory_key="history", return_messages=True)
 
+# --- Load chat history from file ---
 session_path = os.path.join(sessions_dir, f"{st.session_state['session_id']}.json")
 if os.path.exists(session_path):
     with open(session_path, "r") as f:
         st.session_state['chat_messages'] = json.load(f)
 
-# --- Load PDF and create vectorstore ---
+# --- Load Embeddings ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
     model_kwargs={"device": device}
 )
 
-model_attr = getattr(embedding_model, "model", None)
-if model_attr and hasattr(model_attr, "to_empty"):
-    try:
-        model_attr = torch.nn.Module.to_empty(model_attr, device=device)
-    except Exception as e:
-        print("Warning using to_empty:", e)
-
-upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key='upload_pdf')
+# --- Upload PDF and Create Vectorstore ---
+upload_pdf = st.file_uploader("Upload the PDF file", type=["pdf"], key="upload_pdf")
 if upload_pdf and st.session_state['vectorstore'] is None:
-    with st.spinner("Loading PDF and creating vector DB...."):
+    with st.spinner("Loading PDF and creating vector DB..."):
         pdf_path = os.path.join(os.getcwd(), upload_pdf.name)
         with open(pdf_path, "wb") as f:
             f.write(upload_pdf.getbuffer())
@@ -82,7 +63,7 @@ if upload_pdf and st.session_state['vectorstore'] is None:
         vectorstore.save_local(vector_space_dir)
         st.session_state['vectorstore'] = vectorstore
         st.session_state['retriever'] = vectorstore.as_retriever(search_kwargs={"k": 3})
-        st.success("Vector DB Created")
+        st.success("✅ Vector DB created from PDF")
 
 # --- Load LLM ---
 llm = ChatGroq(
@@ -91,46 +72,56 @@ llm = ChatGroq(
     temperature=0
 )
 
-# --- Initialize fallback ConversationChain (chat-only) ---
-if "fallback_chain" not in st.session_state:
-    st.session_state["fallback_chain"] = ConversationChain(
+# --- Fallback Conversational Chain ---
+if 'fallback_chain' not in st.session_state:
+    st.session_state['fallback_chain'] = ConversationChain(
         llm=llm,
-        memory=st.session_state["fallback_memory"],
+        memory=st.session_state['memory'],
         verbose=False
     )
 
-# --- Create PDF QA chain if retriever is available ---
-if st.session_state['retriever'] is not None and 'qa_chain' not in st.session_state:
+# --- QA Chain (only if retriever is ready) ---
+if st.session_state['retriever'] and 'qa_chain' not in st.session_state:
     st.session_state['qa_chain'] = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=st.session_state['retriever'],
         memory=st.session_state['memory'],
-        return_source_documents=False
+        return_source_documents=False,
+        condense_question_llm=llm
     )
 
-# --- Handle User Question ---
+# --- Question Handling ---
 def handle_user_question():
     user_question = st.session_state['text']
     if not user_question.strip():
         return
 
     with st.spinner("Thinking..."):
-        if st.session_state.get("qa_chain"):
-            result = st.session_state["qa_chain"].invoke({"question": user_question})
-            answer = result['answer']
+        answer = ""
+        qa_chain = st.session_state.get("qa_chain")
+        retriever = st.session_state.get("retriever")
+
+        if retriever and qa_chain:
+            docs = retriever.get_relevant_documents(user_question)
+            if docs and len(docs) > 0:
+                result = qa_chain.invoke({"question": user_question})
+                answer = result["answer"]
+            else:
+                answer = st.session_state["fallback_chain"].run(user_question)
         else:
             answer = st.session_state["fallback_chain"].run(user_question)
 
         st.session_state["chat_messages"].append({"role": "user", "content": user_question})
         st.session_state["chat_messages"].append({"role": "bot", "content": answer})
+
         with open(session_path, "w") as f:
             json.dump(st.session_state["chat_messages"], f, indent=2)
 
     st.session_state["text"] = ""
 
-# --- UI: Sidebar ---
+# --- Sidebar: Session Selection ---
 with st.sidebar:
-    st.markdown("### 📂 View Previous Sessions")
+    st.markdown("### 🗂️ View Previous Sessions")
     session_files = [f.replace(".json", "") for f in os.listdir(sessions_dir) if f.endswith(".json")]
     selected_session = st.selectbox("Select a session", options=["-- Select --"] + session_files)
     if selected_session != "-- Select --":
@@ -143,23 +134,23 @@ with st.sidebar:
                         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
                         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- Chat Area ---
-if st.session_state['chat_messages']:
+# --- Display Chat History ---
+if st.session_state["chat_messages"]:
     st.markdown("### 💬 Current Chat Session")
-    for msg in st.session_state['chat_messages']:
+    for msg in st.session_state["chat_messages"]:
         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
         st.markdown(f"**{role}:** {msg['content']}")
 
 # --- Mode Indicator ---
 if st.session_state.get("qa_chain"):
-    st.success("🧠 PDF-based QA active.")
+    st.success("🧠 PDF-based QA mode active (hybrid fallback).")
 else:
-    st.info("💬 Chat mode active (no PDF loaded).")
+    st.info("💬 Conversational mode only.")
 
 # --- Input Box ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
-# --- Clear Session Button ---
+# --- Clear Session ---
 def del_vectordb(path):
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -169,15 +160,11 @@ def del_uploaded_pdf(path):
         os.remove(path)
 
 if st.button("Clear Session"):
-    if 'memory' in st.session_state:
-        st.session_state['memory'].clear()
-    if 'fallback_memory' in st.session_state:
-        st.session_state['fallback_memory'].clear()
-    for key in ['chat_messages', 'text', 'retriever', 'vectorstore', 'pdf_file_path', 'upload_pdf', 'qa_chain']:
+    for key in ['memory', 'chat_messages', 'text', 'retriever', 'vectorstore', 'pdf_file_path', 'upload_pdf', 'qa_chain', 'fallback_chain']:
         if key in st.session_state:
             del st.session_state[key]
     del_vectordb(vector_space_dir)
-    del_uploaded_pdf(st.session_state.get('pdf_file_path'))
+    del_uploaded_pdf(st.session_state.get("pdf_file_path", None))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state['session_id'] = f"session_{timestamp}_{uuid.uuid4().hex[:6]}"
     st.session_state['chat_messages'] = []
