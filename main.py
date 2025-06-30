@@ -104,7 +104,7 @@ def handle_user_question():
         if retriever and qa_chain:
             docs = retriever.get_relevant_documents(user_question)
             if docs and len(docs) > 0:
-                result = qa_chain.invoke({"question": user_question})
+                result = qa_chain.run({"question": user_question})
                 answer = result["answer"]
             else:
                 answer = st.session_state["fallback_chain"].run(user_question)
