@@ -44,9 +44,10 @@ llm = ChatGroq(
 if 'memory' not in st.session_state:
     st.session_state['memory'] = ConversationSummaryMemory(
         llm=llm,
-        memory_key="chat_history",
+        memory_key="history",   # ✅ use default key expected by ConversationChain
         return_messages=True
     )
+
 
 # --- Setup Fallback Chain (general chatbot) ---
 if 'fallback_chain' not in st.session_state:
