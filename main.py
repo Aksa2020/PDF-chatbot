@@ -77,7 +77,13 @@ llm = ChatGroq(
     model_name="llama3-8b-8192",
     temperature=0
 )
-
+# ... after llm = ChatGroq(...)
+if "fallback_chain" not in st.session_state:
+    st.session_state["fallback_chain"] = ConversationChain(
+        llm=llm,
+        memory=st.session_state["memory"],
+        verbose=False
+    )
 # --- Create QA Chain (before callback) ---
 if st.session_state['retriever'] is not None and 'qa_chain' not in st.session_state:
     st.session_state['qa_chain'] = ConversationalRetrievalChain.from_llm(
@@ -94,20 +100,23 @@ def handle_user_question():
     if not user_question.strip():
         return
 
-    qa_chain = st.session_state.get('qa_chain')
-    if not qa_chain:
-        st.error("❌ QA chain is not initialized. Please upload a PDF first.")
-        return
-
     with st.spinner("Thinking..."):
-        result = qa_chain.invoke({"question": user_question})
-        st.session_state['chat_messages'].append({"role": "user", "content": user_question})
-        st.session_state['chat_messages'].append({"role": "bot", "content": result['answer']})
+        if st.session_state.get("qa_chain"):
+            # PDF QA mode
+            result = st.session_state["qa_chain"].invoke({"question": user_question})
+            answer = result['answer']
+        else:
+            # Fallback: plain conversation
+            answer = st.session_state["fallback_chain"].run(user_question)
 
+        # Save messages
+        st.session_state["chat_messages"].append({"role": "user", "content": user_question})
+        st.session_state["chat_messages"].append({"role": "bot", "content": answer})
         with open(session_path, "w") as f:
-            json.dump(st.session_state['chat_messages'], f, indent=2)
+            json.dump(st.session_state["chat_messages"], f, indent=2)
 
-    st.session_state['text'] = ""
+    st.session_state["text"] = ""
+
 
 # --- UI: Sidebar ---
 with st.sidebar:
@@ -130,7 +139,14 @@ if st.session_state['chat_messages']:
     for msg in st.session_state['chat_messages']:
         role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
         st.markdown(f"**{role}:** {msg['content']}")
+# --- Show active mode (PDF QA or Chat only) ---
+if st.session_state.get("qa_chain"):
+    st.success("🧠 PDF-based QA active.")
+else:
+    st.info("💬 Chat mode active (no PDF loaded).")
 
+# --- Input box ---
+st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 # --- Input box ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
