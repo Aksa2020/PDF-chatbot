@@ -10,12 +10,12 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
-from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain, ConversationChain
+from langchain.memory import ConversationSummaryMemory
 
 # --- Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
-st.title("PDF ChatBot)")
+st.title("PDF ChatBot")
 
 vector_space_dir = os.path.join(os.getcwd(), "vector_db")
 sessions_dir = os.path.join(os.getcwd(), "chat_sessions")
@@ -32,8 +32,31 @@ if 'vectorstore' not in st.session_state:
     st.session_state['vectorstore'] = None
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
+
+# --- Load LLM ---
+llm = ChatGroq(
+    groq_api_key=st.secrets["groq_api_key"],
+    model_name="llama3-8b-8192",
+    temperature=0
+)
+
+# --- Initialize Memory ---
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    st.session_state['memory'] = ConversationSummaryMemory(
+        llm=llm,
+        memory_key="chat_history",
+        return_messages=True
+    )
+
+# --- Setup Fallback Chain (general chatbot) ---
+if 'fallback_chain' not in st.session_state:
+    st.session_state['fallback_chain'] = ConversationChain(
+        llm=llm,
+        memory=st.session_state['memory'],
+        verbose=False
+    )
+
+# --- Load Existing Chat Session ---
 if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = []
 
@@ -71,15 +94,8 @@ if upload_pdf and st.session_state['vectorstore'] is None:
         st.session_state['retriever'] = vectorstore.as_retriever(search_kwargs={"k": 3})
         st.success("Vector DB Created")
 
-# --- Load LLM ---
-llm = ChatGroq(
-    groq_api_key=st.secrets["groq_api_key"],
-    model_name="llama3-8b-8192",
-    temperature=0
-)
-
-# --- Create QA Chain (before callback) ---
-if st.session_state['retriever'] is not None and 'qa_chain' not in st.session_state:
+# --- Create QA Chain if PDF is uploaded ---
+if st.session_state.get('retriever') and 'qa_chain' not in st.session_state:
     st.session_state['qa_chain'] = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=st.session_state['retriever'],
@@ -88,52 +104,26 @@ if st.session_state['retriever'] is not None and 'qa_chain' not in st.session_st
         condense_question_llm=llm
     )
 
-
-# if st.session_state['retriever'] is not None:
-#     qa_chain = ConversationalRetrievalChain.from_llm(
-#         llm=llm,
-#         retriever=st.session_state['retriever'],
-#         memory=st.session_state['memory'],
-#         return_source_documents=False,
-#         condense_question_llm=llm
-#     )
-
-# # --- Handle User Question ---
-# def handle_user_question():
-#     user_question = st.session_state['text']
-#     if not user_question.strip():
-#         return
-
-#     with st.spinner("Thinking..."):
-#         result = qa_chain.invoke({"question": user_question})
-#         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
-#         st.session_state['chat_messages'].append({"role": "bot", "content": result['answer']})
-
-#         with open(session_path, "w") as f:
-#             json.dump(st.session_state['chat_messages'], f, indent=2)
-
-#     st.session_state['text'] = ""
-
+# --- Handle User Question ---
 def handle_user_question():
     user_question = st.session_state['text']
     if not user_question.strip():
         return
 
-    qa_chain = st.session_state.get('qa_chain')
-    if not qa_chain:
-        st.error("❌ QA chain is not initialized. Please upload a PDF first.")
-        return
-
     with st.spinner("Thinking..."):
-        result = qa_chain.invoke({"question": user_question})
+        if 'qa_chain' in st.session_state:
+            result = st.session_state['qa_chain'].invoke({"question": user_question})
+            answer = result['answer']
+        else:
+            answer = st.session_state['fallback_chain'].run(user_question)
+
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
-        st.session_state['chat_messages'].append({"role": "bot", "content": result['answer']})
+        st.session_state['chat_messages'].append({"role": "bot", "content": answer})
 
         with open(session_path, "w") as f:
             json.dump(st.session_state['chat_messages'], f, indent=2)
 
     st.session_state['text'] = ""
-
 
 # --- UI: Sidebar ---
 with st.sidebar:
@@ -170,36 +160,15 @@ def del_uploaded_pdf(path):
         os.remove(path)
 
 if st.button("Clear Session"):
-    # Clear LangChain memory
     if 'memory' in st.session_state:
         st.session_state['memory'].clear()
-        # Clear chat history and input
-        for key in ['chat_messages', 'text', 'retriever', 'vectorstore', 'pdf_file_path', 'upload_pdf']:
-            if key in st.session_state:
-                del st.session_state[key]
-                # Delete vector DB directory
+    for key in ['chat_messages', 'text', 'retriever', 'vectorstore', 'pdf_file_path', 'upload_pdf', 'qa_chain']:
+        if key in st.session_state:
+            del st.session_state[key]
     del_vectordb(vector_space_dir)
-    # Delete uploaded PDF if present
-    pdf_p = st.session_state.get('pdf_file_path')
-    if pdf_p:
-        del_uploaded_pdf(pdf_p)
-        # ✅ Reset session_id and create a fresh chat log
+    del_uploaded_pdf(st.session_state.get('pdf_file_path'))
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     st.session_state['session_id'] = f"session_{timestamp}_{uuid.uuid4().hex[:6]}"
     st.session_state['chat_messages'] = []
     st.success("Session, PDF, and Vector DB cleared.")
     st.rerun()
-
-# if st.button("Clear Session"):
-#     st.session_state['memory'].clear()
-#     st.session_state['retriever'] = None
-#     st.session_state['vectorstore'] = None
-#     st.session_state['chat_messages'] = []
-#     del_vectordb(vector_space_dir)
-#     del_uploaded_pdf(st.session_state.get('pdf_file_path', None))
-#     st.session_state['pdf_file_path'] = None
-#     for key in ['upload_pdf']:
-#         if key in st.session_state:
-#             del st.session_state[key]
-#     st.success("Session, PDF, chat, and vector DB are cleared")
-#     st.rerun()
