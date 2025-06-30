@@ -104,7 +104,10 @@ def handle_user_question():
     with st.spinner("Thinking..."):
         if st.session_state.get("qa_chain"):
             # PDF QA mode
-            result = st.session_state["qa_chain"].invoke({"question": user_question})
+            result = st.session_state["qa_chain"].invoke({"question": user_question,
+                                                          "chat_history": st.session_state['memory'].chat_memory.messages  # ✅ Add chat history
+                                                         })
+
             answer = result['answer']
         else:
             # Fallback: plain conversation
