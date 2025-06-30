@@ -49,6 +49,7 @@ if 'memory' not in st.session_state:
     summary_memory = ConversationSummaryMemory(
         llm=llm,
         memory_key="summary",
+        memory_key="chat_history",
         return_messages=True
     )
     st.session_state['memory'] = CombinedMemory(memories=[buffer_memory, summary_memory])
@@ -105,6 +106,7 @@ if st.session_state.get('retriever') and 'qa_chain' not in st.session_state:
         llm=llm,
         retriever=st.session_state['retriever'],
         memory=st.session_state['memory'],
+        memory_key="chat_history"
         return_source_documents=False
     )
 
