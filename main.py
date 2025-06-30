@@ -106,6 +106,25 @@ if st.session_state.get('retriever') and 'qa_chain' not in st.session_state:
     )
 
 # --- Handle User Question ---
+# def handle_user_question():
+#     user_question = st.session_state['text']
+#     if not user_question.strip():
+#         return
+
+#     with st.spinner("Thinking..."):
+#         if 'qa_chain' in st.session_state:
+#             result = st.session_state['qa_chain'].invoke({"question": user_question})
+#             answer = result['answer']
+#         else:
+#             answer = st.session_state['fallback_chain'].run(user_question)
+
+#         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
+#         st.session_state['chat_messages'].append({"role": "bot", "content": answer})
+
+#         with open(session_path, "w") as f:
+#             json.dump(st.session_state['chat_messages'], f, indent=2)
+
+#     st.session_state['text'] = ""
 def handle_user_question():
     user_question = st.session_state['text']
     if not user_question.strip():
@@ -113,8 +132,7 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
-            result = st.session_state['qa_chain'].invoke({"question": user_question})
-            answer = result['answer']
+            answer = st.session_state['qa_chain'].run(user_question)
         else:
             answer = st.session_state['fallback_chain'].run(user_question)
 
