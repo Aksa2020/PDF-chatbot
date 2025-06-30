@@ -104,7 +104,10 @@ def handle_user_question():
         if retriever and qa_chain:
             docs = retriever.get_relevant_documents(user_question)
             if docs and len(docs) > 0:
-                result = qa_chain.run({"question": user_question})
+                result = qa_chain.invoke({
+                    "question": user_question,
+                    "chat_history": st.session_state["memory"].chat_memory.messages
+                })
                 answer = result["answer"]
             else:
                 answer = st.session_state["fallback_chain"].run(user_question)
@@ -118,6 +121,7 @@ def handle_user_question():
             json.dump(st.session_state["chat_messages"], f, indent=2)
 
     st.session_state["text"] = ""
+
 
 # --- Sidebar: Session Selection ---
 with st.sidebar:
