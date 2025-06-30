@@ -8,3 +8,5 @@ unstructured
 python-dotenv
 faiss-cpu
 sentence-transformers
+pillow-heif
+torch
