@@ -11,7 +11,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain.chains import ConversationalRetrievalChain, ConversationChain
-from langchain.memory import ConversationSummaryMemory
+from langchain.memory import ConversationBufferMemory, ConversationSummaryMemory, CombinedMemory
 
 # --- Setup ---
 st.set_page_config(page_title="PDF ChatBot", layout="centered")
@@ -40,16 +40,20 @@ llm = ChatGroq(
     temperature=0
 )
 
-# --- Initialize Memory ---
+# --- Initialize Combined Memory ---
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationSummaryMemory(
-        llm=llm,
-        memory_key="history",   # ✅ use default key expected by ConversationChain
+    buffer_memory = ConversationBufferMemory(
+        memory_key="buffer",
         return_messages=True
     )
+    summary_memory = ConversationSummaryMemory(
+        llm=llm,
+        memory_key="summary",
+        return_messages=True
+    )
+    st.session_state['memory'] = CombinedMemory(memories=[buffer_memory, summary_memory])
 
-
-# --- Setup Fallback Chain (general chatbot) ---
+# --- Fallback Chain ---
 if 'fallback_chain' not in st.session_state:
     st.session_state['fallback_chain'] = ConversationChain(
         llm=llm,
@@ -66,7 +70,7 @@ if os.path.exists(session_path):
     with open(session_path, "r") as f:
         st.session_state['chat_messages'] = json.load(f)
 
-# --- Load PDF and create vectorstore ---
+# --- Load PDF and Create Vectorstore ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
 embedding_model = HuggingFaceEmbeddings(
     model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -95,37 +99,16 @@ if upload_pdf and st.session_state['vectorstore'] is None:
         st.session_state['retriever'] = vectorstore.as_retriever(search_kwargs={"k": 3})
         st.success("Vector DB Created")
 
-# --- Create QA Chain if PDF is uploaded ---
+# --- Create QA Chain ---
 if st.session_state.get('retriever') and 'qa_chain' not in st.session_state:
     st.session_state['qa_chain'] = ConversationalRetrievalChain.from_llm(
         llm=llm,
         retriever=st.session_state['retriever'],
         memory=st.session_state['memory'],
-        memory_key="history",  # optional, for clarity
-        return_source_documents=False,
-        condense_question_llm=llm
+        return_source_documents=False
     )
 
 # --- Handle User Question ---
-# def handle_user_question():
-#     user_question = st.session_state['text']
-#     if not user_question.strip():
-#         return
-
-#     with st.spinner("Thinking..."):
-#         if 'qa_chain' in st.session_state:
-#             result = st.session_state['qa_chain'].invoke({"question": user_question})
-#             answer = result['answer']
-#         else:
-#             answer = st.session_state['fallback_chain'].run(user_question)
-
-#         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
-#         st.session_state['chat_messages'].append({"role": "bot", "content": answer})
-
-#         with open(session_path, "w") as f:
-#             json.dump(st.session_state['chat_messages'], f, indent=2)
-
-#     st.session_state['text'] = ""
 def handle_user_question():
     user_question = st.session_state['text']
     if not user_question.strip():
@@ -133,16 +116,11 @@ def handle_user_question():
 
     with st.spinner("Thinking..."):
         if 'qa_chain' in st.session_state:
-            # ConversationalRetrievalChain with memory, no need to pass chat_history
-            result = st.session_state['qa_chain'].invoke({
-                "question": user_question
-            })
-            answer = result["answer"]
+            result = st.session_state['qa_chain'].invoke({"question": user_question})
+            answer = result['answer']
         else:
-            # Fallback to basic conversation
             answer = st.session_state['fallback_chain'].run(user_question)
 
-        # Store in session
         st.session_state['chat_messages'].append({"role": "user", "content": user_question})
         st.session_state['chat_messages'].append({"role": "bot", "content": answer})
 
@@ -151,12 +129,9 @@ def handle_user_question():
 
     st.session_state['text'] = ""
 
-
-
-
-# --- UI: Sidebar ---
+# --- Sidebar ---
 with st.sidebar:
-    st.markdown("### 📂 View Previous Sessions")
+    st.markdown("### \U0001F4C2 View Previous Sessions")
     session_files = [f.replace(".json", "") for f in os.listdir(sessions_dir) if f.endswith(".json")]
     selected_session = st.selectbox("Select a session", options=["-- Select --"] + session_files)
     if selected_session != "-- Select --":
@@ -166,17 +141,16 @@ with st.sidebar:
                 prev_msgs = json.load(f)
                 with st.expander(f"Chat from `{selected_session}`", expanded=True):
                     for msg in prev_msgs:
-                        role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
+                        role = "\U0001F9D1 You" if msg["role"] == "user" else "🤖 Bot"
                         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- UI: Main chat area ---
+# --- Chat UI ---
 if st.session_state['chat_messages']:
-    st.markdown("### 💬 Current Chat Session")
+    st.markdown("### \U0001F4AC Current Chat Session")
     for msg in st.session_state['chat_messages']:
-        role = "🧑 You" if msg["role"] == "user" else "🤖 Bot"
+        role = "\U0001F9D1 You" if msg["role"] == "user" else "🤖 Bot"
         st.markdown(f"**{role}:** {msg['content']}")
 
-# --- Input box ---
 st.text_input("Ask your question:", key="text", on_change=handle_user_question)
 
 # --- Clear Session ---
