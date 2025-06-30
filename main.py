@@ -34,7 +34,7 @@ if 'vectorstore' not in st.session_state:
 if 'retriever' not in st.session_state:
     st.session_state['retriever'] = None
 if 'memory' not in st.session_state:
-    st.session_state['memory'] = ConversationBufferMemory(memory_key="history", return_messages=True)
+    st.session_state['memory'] = ConversationBufferMemory(memory_key="chat_history",input_key="question",output_key="answer",return_messages=True)
 if 'chat_messages' not in st.session_state:
     st.session_state['chat_messages'] = []
 
@@ -104,10 +104,10 @@ def handle_user_question():
     with st.spinner("Thinking..."):
         if st.session_state.get("qa_chain"):
             # PDF QA mode
-            result = st.session_state["qa_chain"].invoke({"question": user_question,
-                                                          "chat_history": st.session_state['memory'].chat_memory.messages  # ✅ Add chat history
-                                                         })
-
+            result = st.session_state["qa_chain"].invoke({
+                "question": user_question,
+                "chat_history": st.session_state["memory"].chat_memory.messages
+            })
             answer = result['answer']
         else:
             # Fallback: plain conversation
