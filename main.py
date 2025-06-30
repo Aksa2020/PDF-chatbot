@@ -36,10 +36,10 @@ def setup_vectorstore(documents):
 
 
 def create_chain(vectorstore):
-    llm = ChatGroq(
-        model="llama-3.1-70b-versatile",
-        temperature=0
-    )
+    llm = ChatGroq(groq_api_key=st.secrets["groq_api_key"],
+                   model_name="llama3-70b-8192",
+                   temperature=0
+                  )
     retriever = vectorstore.as_retriever()
     memory = ConversationBufferMemory(
         llm=llm,
