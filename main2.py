@@ -84,46 +84,26 @@ load_session()
 @st.cache_resource
 def initialize_models():
     try:
-        st.write("🔄 Initializing models...")
-        
-        # Check if API key exists
-        if "groq_api_key" not in st.secrets:
-            st.error("❌ Groq API key not found in secrets!")
-            return None, None
-            
         llm = ChatGroq(
             groq_api_key=st.secrets["groq_api_key"],
             model_name="llama3-8b-8192",
             temperature=0.1
         )
-        st.write("✅ LLM initialized successfully")
         
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        st.write(f"🔧 Using device: {device}")
-        
         embedding_model = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2",
             model_kwargs={"device": device}
         )
-        st.write("✅ Embedding model initialized successfully")
         
         return llm, embedding_model
     except Exception as e:
-        st.error(f"❌ Error initializing models: {str(e)}")
-        st.write(f"Exception details: {traceback.format_exc()}")
+        st.error(f"Error initializing models: {str(e)}")
         return None, None
 
-try:
-    llm, embedding_model = initialize_models()
-except Exception as e:
-    st.error(f"❌ Failed to initialize models: {str(e)}")
-    llm, embedding_model = None, None
+llm, embedding_model = initialize_models()
 
 if not llm or not embedding_model:
-    st.error("❌ Model initialization failed. Please check your configuration.")
-    st.info("💡 Make sure you have:")
-    st.info("1. Added your Groq API key to Streamlit secrets")
-    st.info("2. Installed all required packages")
     st.stop()
 
 # --- Text Splitter ---
@@ -368,7 +348,7 @@ with st.sidebar:
     if 'vectorstore' in st.session_state:
         st.success("📄 PDF loaded and ready!")
     else:
-        st.warning("📄 No PDF loaded - General chat mode")
+        st.markdown('<div style="padding: 0.75rem 1rem; background-color: #007bff; color: white; border-radius: 0.375rem; margin: 1rem 0;"><strong>📄 No PDF loaded - General chat mode</strong></div>', unsafe_allow_html=True)
     
     st.markdown("---")
     
