@@ -34,7 +34,7 @@ st.set_page_config(
     layout="centered",
     page_icon="📄"
 )
-st.title("📄💬 PDF ChatBot")
+st.title("PDF ChatBot")
 st.markdown("Upload a PDF and chat about its contents, or have a general conversation!")
 
 # --- Directory Setup ---
@@ -332,7 +332,7 @@ if st.session_state['chat_messages']:
                 """, unsafe_allow_html=True)
 
 # --- User Input ---
-st.markdown("### ✍️ Ask a Question")
+st.markdown("### Ask a Question")
 st.text_input(
     "Type your question here:", 
     key="text", 
@@ -346,9 +346,14 @@ with st.sidebar:
     st.info(f"**Session ID:** {st.session_state['session_id'][:15]}...")
     
     if 'vectorstore' in st.session_state:
-        st.success("📄 PDF loaded and ready!")
+        st.success("PDF loaded and ready!")
     else:
-        st.markdown('<div style="padding: 0.75rem 1rem; background-color: #007bff; color: white; border-radius: 0.375rem; margin: 1rem 0;"><strong>📄 No PDF loaded - General chat mode</strong></div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div style="padding: 0.75rem 1rem; background-color: #007bff !important; color: white !important; 
+                   border-radius: 0.375rem; margin: 1rem 0; border: none !important;">
+            <strong>No PDF loaded - General chat mode</strong>
+        </div>
+        """, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -385,7 +390,7 @@ with st.sidebar:
     st.markdown("---")
     
     # --- Clear Session Button ---
-    if st.button("🗑️ Clear Current Session", type="primary"):
+    if st.button("Clear Current Session", type="secondary"):
         try:
             # Clear session state
             keys_to_clear = ['chat_messages', 'text', 'retriever', 'vectorstore', 
