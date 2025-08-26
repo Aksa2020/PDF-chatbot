@@ -19,6 +19,14 @@ from langchain.chains import (
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+import streamlit.components.v1 as components
+
+# ✅ Google Search Console verification
+components.html("""
+    <meta name="google-site-verification" content="12b55dIg7kc7farCsRWMYZtAsgc2rSszfhh_-qJ0Wtg" />
+""", height=0)
+
+
 
 # --- Streamlit Page Setup ---
 st.set_page_config(
