@@ -26,7 +26,7 @@ st.set_page_config(
     layout="centered",
     page_icon="📄"
 )
-st.title("📄💬 PDF + Chat ChatBot")
+st.title("📄💬 PDF ChatBot")
 st.markdown("Upload a PDF and chat about its contents, or have a general conversation!")
 
 # --- Directory Setup ---
