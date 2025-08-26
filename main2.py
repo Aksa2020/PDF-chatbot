@@ -103,7 +103,7 @@ def initialize_models():
 
 llm, embedding_model = initialize_models()
 
-if not llm or embedding_model:
+if not llm or not embedding_model:
     st.stop()
 
 # --- Text Splitter ---
